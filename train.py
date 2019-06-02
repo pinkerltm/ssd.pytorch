@@ -16,6 +16,8 @@ import numpy as np
 import argparse
 
 
+viz = None
+
 def str2bool(v):
     return v.lower() in ("yes", "true", "t", "1")
 
@@ -89,8 +91,10 @@ def train():
                                                          MEANS))
 
     if args.visdom:
+        print("Importing visdom...")
         import visdom
         viz = visdom.Visdom()
+        print(viz)
 
     ssd_net = build_ssd('train', cfg['min_dim'], cfg['num_classes'])
     net = ssd_net
@@ -139,8 +143,8 @@ def train():
     if args.visdom:
         vis_title = 'SSD.PyTorch on ' + dataset.name
         vis_legend = ['Loc Loss', 'Conf Loss', 'Total Loss']
-        iter_plot = create_vis_plot('Iteration', 'Loss', vis_title, vis_legend)
-        epoch_plot = create_vis_plot('Epoch', 'Loss', vis_title, vis_legend)
+        iter_plot = create_vis_plot(viz, 'Iteration', 'Loss', vis_title, vis_legend)
+        epoch_plot = create_vis_plot(viz, <<'Epoch', 'Loss', vis_title, vis_legend)
 
     data_loader = data.DataLoader(dataset, args.batch_size,
                                   num_workers=args.num_workers,
@@ -150,7 +154,7 @@ def train():
     batch_iterator = iter(data_loader)
     for iteration in range(args.start_iter, cfg['max_iter']):
         if args.visdom and iteration != 0 and (iteration % epoch_size == 0):
-            update_vis_plot(epoch, loc_loss, conf_loss, epoch_plot, None,
+            update_vis_plot(viz, epoch, loc_loss, conf_loss, epoch_plot, None,
                             'append', epoch_size)
             # reset epoch loss counters
             loc_loss = 0
@@ -180,15 +184,21 @@ def train():
         loss.backward()
         optimizer.step()
         t1 = time.time()
-        loc_loss += loss_l.data[0]
-        conf_loss += loss_c.data[0]
+        loc_loss += loss_l.data
+      #  loc_loss += loss_l.data[0]
+        conf_loss += loss_c.data
+     #   conf_loss += loss_c.data[0]
+        
 
         if iteration % 10 == 0:
             print('timer: %.4f sec.' % (t1 - t0))
-            print('iter ' + repr(iteration) + ' || Loss: %.4f ||' % (loss.data[0]), end=' ')
+            #print('iter ' + repr(iteration) + ' || Loss: %.4f ||' % (loss.data[0]), end=' ')
+            print('iter ' + repr(iteration) + ' || Loss: %.4f ||' % (loss.data), end=' ')
 
         if args.visdom:
-            update_vis_plot(iteration, loss_l.data[0], loss_c.data[0],
+        #    update_vis_plot(iteration, loss_l.data[0], loss_c.data[0],
+         #                   iter_plot, epoch_plot, 'append')
+            update_vis_plot(viz, iteration, loss_l.data, loss_c.data,
                             iter_plot, epoch_plot, 'append')
 
         if iteration != 0 and iteration % 5000 == 0:
@@ -220,7 +230,7 @@ def weights_init(m):
         m.bias.data.zero_()
 
 
-def create_vis_plot(_xlabel, _ylabel, _title, _legend):
+def create_vis_plot(viz,_xlabel, _ylabel, _title, _legend):
     return viz.line(
         X=torch.zeros((1,)).cpu(),
         Y=torch.zeros((1, 3)).cpu(),
@@ -233,7 +243,7 @@ def create_vis_plot(_xlabel, _ylabel, _title, _legend):
     )
 
 
-def update_vis_plot(iteration, loc, conf, window1, window2, update_type,
+def update_vis_plot(viz,iteration, loc, conf, window1, window2, update_type,
                     epoch_size=1):
     viz.line(
         X=torch.ones((1, 3)).cpu() * iteration,
