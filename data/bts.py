@@ -5,6 +5,7 @@ import torch
 import torch.utils.data as data
 import cv2
 import numpy as np
+
 if sys.version_info[0] == 2:
     import xml.etree.cElementTree as ET
 else:
@@ -24,68 +25,76 @@ else:
 10.    rectanglesup  = [37,87,90,94,95,96,97,149,150,163];%10
 11.    rectanglesdown= [111,112]; %11
 '''
-BTS_CLASSES = (
-    'undefined traffic sign (TS) class type',   #-1 ... 2040
-    'other defined TS',                         # 0 ... 1705
-    'triangles',                                # 1 ... 765
-    'redcircles',                               # 2 ... 891
-    'bluecircles',                              # 3 ... 1026
-    'redbluecircles',                           # 4 ... 455
-    'diamonds',                                 # 5 ... 291
-    'revtriangle',                              # 6 ... 252
-    'stop',                                     # 7 ... 43
-    'forbidden',                                # 8 ... 375
-    'squares',                                  # 9 ... 414
-    'rectanglesup',                             # 10 ... 540
-    'rectanglesdown',                           # 11 ... 54
-    )
-                                                # Total 8851 Annotations (Training) in 5905 images
+BTS_SUPERCLASSES = (
+    'undefined traffic sign (TS) class type',  # -1 ... 2040
+    'other defined TS',  # 0 ... 1705
+    'triangles',  # 1 ... 765
+    'redcircles',  # 2 ... 891
+    'bluecircles',  # 3 ... 1026
+    'redbluecircles',  # 4 ... 455
+    'diamonds',  # 5 ... 291
+    'revtriangle',  # 6 ... 252
+    'stop',  # 7 ... 43
+    'forbidden',  # 8 ... 375
+    'squares',  # 9 ... 414
+    'rectanglesup',  # 10 ... 540
+    'rectanglesdown',  # 11 ... 54
+)
+# Total 8851 Annotations (Training) in 5905 images
 
-BTS_ROOT = osp.join(HOME, "data/BelgiumTS/")
+BTS_ROOT = osp.join(HOME, "data/BelgiumTS")
+
 
 class BTSAnnotationTransform(object):
     """Transforms a BTS annotation into a Tensor of bbox coords and label index
     Initilized with a dictionary lookup of classnames to indexes
 
     Arguments:
-        class_to_ind (dict, optional): dictionary lookup of classnames -> indexes
-            (default: alphabetic indexing of VOC's 20 classes)
-        keep_difficult (bool, optional): keep difficult instances or not
-            (default: False)
+
         height (int): height
         width (int): width
     """
+
     def __init__(self, only_superclass=True):
-        self.class_to_ind = dict(
-            zip(BTS_CLASSES, range(-1, len(BTS_CLASSES)))
-            )
+        self.superclass_to_label = dict(
+            zip(BTS_SUPERCLASSES, range(-1, len(BTS_SUPERCLASSES)))
+        )
+        self.label_to_superclass = dict(
+            zip(range(-1, len(BTS_SUPERCLASSES)), BTS_SUPERCLASSES)
+        )
+        if not only_superclass:
+            self.class_to_label = {}
+            self.label_to_class = {}
+            # TODO implement Classes loading
         self.only_superclass = only_superclass
 
     def __call__(self, target, width, height):
         """
         Arguments:
             target (annotation) : the target annotation to be made usable
-                training|testing|all
+                iterable/list of annotation tuples from the csv file
         Returns:
             a list containing lists of bounding boxes  [bbox coords, class name]
         """
         res = []
-		obj = target.split(';')
-			
-		pts = ['xmin', 'ymin', 'xmax', 'ymax']
-        bndbox = []
-        for i in range(1,4):
-            cur_pt = int(obj[i]) - 1
-            # scale height or width
-            cur_pt = cur_pt / height if i % 2 == 0 else cur_pt / width
-            bndbox.append(cur_pt)
-				
-		label_idx = self.class_to_ind[int(obj[6])]
-        bndbox.append(label_idx)
-        res += [bndbox]  # [xmin, ymin, xmax, ymax, label_ind]
+
+        for line in target:
+            obj = line #.split(';') # as these are already tuples
+            bndbox = []
+            for i in range(1, 4):
+                cur_pt = int(float(obj[i])) - 1
+                # scale height or width
+                cur_pt = cur_pt / height if i % 2 == 0 else cur_pt / width
+                bndbox.append(cur_pt)
+
+                label = obj[6] if self.only_superclass else obj[5]
+                #label_idx = self.class_to_ind[int()] # TODO is here a mapping needed?
+                bndbox.append(int(label))
+            res += [bndbox]  # [xmin, ymin, xmax, ymax, label_ind]
         # img_id = target.find('filename').text[:-4]
 
         return res  # [[xmin, ymin, xmax, ymax, label_ind], ... ]
+
 
 class BTSDetection(data.Dataset):
     """BTS Detection Dataset Object
@@ -104,27 +113,33 @@ class BTSDetection(data.Dataset):
             (default: 'VOC2007')
     """
 
-    def __init__(self, root, image_set, transform=None, target_transform=BTSAnnotationTransform()):
+    def __init__(self, root,
+                 image_set='all',
+                 transform=None,
+                 target_transform=BTSAnnotationTransform(),
+                 dataset_name='BTS'):
         self.root = root
         self.transform = transform
         self.target_transform = target_transform
-        self._annopath = osp.join('%s', 'BelgiumTSD_annotations', 'BTSD_%s.txt')
-        self._imgpath = osp.join('%s','%s')
-        self.ids = list()
+        self.name = dataset_name
+        self._annopath = osp.join('%s', 'BelgiumTSD_annotations', 'BTSD_%s_GTclear.txt')
+        self._imgpath = root
+        self.anno = list()
         for set in ['training', 'testing']:
-			if image_set==set or image_set=='all':
-				for line in open(osp.join(rootpath, 'BelgiumTSD_annotations', 'BTSD_%s.txt' % set)):
-					row = line.split(';');
-					self.ids.append(
-						(
-							osp.join(rootpath, row[0])
-							, row[1]
-							, row[2]
-							, row[3]
-							, row[4]
-							, row[6] if self.target_transform.only_superclass else row[5]
-						)
-					)
+            if image_set == set or image_set == 'all':
+                for line in open(self._annopath % (root, set)):
+                    row = line.split(';')
+                    (cam, image) = row[0].split('/')
+                    self.anno.append(
+                        (   osp.join(root, cam, image)
+                            , row[1]
+                            , row[2]
+                            , row[3]
+                            , row[4]
+                            , row[5]
+                            , row[6] #if self.target_transform.only_superclass else row[5]
+                        )
+                    )
 
     def __getitem__(self, index):
         im, gt, h, w = self.pull_item(index)
@@ -132,7 +147,7 @@ class BTSDetection(data.Dataset):
         return im, gt
 
     def __len__(self):
-        return len(self.ids)
+        return len(self.anno)
 
     '''
     Annotation format
@@ -150,16 +165,17 @@ class BTSDetection(data.Dataset):
     Example:
     "01/image.000945.jp2;1066.23;383.12;1109.31;429.08;80;3;"
     '''
-    def pull_item(self, index):
-		img_id = self.ids[index]
 
-        target = ET.parse(self._annopath % img_id).getroot()
-        img = cv2.imread(self._imgpath % img_id)
+    def pull_item(self, index):
+        item = self.anno[index]
+        target = [item]
+        img = cv2.imread(item[0])
         height, width, channels = img.shape
 
         if self.target_transform is not None:
             target = self.target_transform(target, width, height)
 
+        # TODO this will not work I am afraid
         if self.transform is not None:
             target = np.array(target)
             img, boxes, labels = self.transform(img, target[:, :4], target[:, 4])
@@ -169,6 +185,7 @@ class BTSDetection(data.Dataset):
             target = np.hstack((boxes, np.expand_dims(labels, axis=1)))
 
         return torch.from_numpy(img).permute(2, 0, 1), target, height, width
+
 
     def pull_image(self, index):
         '''Returns the original image object at index in PIL form
@@ -181,8 +198,9 @@ class BTSDetection(data.Dataset):
         Return:
             PIL img
         '''
-        img_id = self.ids[index]
-        return cv2.imread(img_id[0], cv2.IMREAD_COLOR)
+        item = self.anno[index]
+        return cv2.imread(item[0], cv2.IMREAD_COLOR)
+
 
     def pull_anno(self, index):
         '''Returns the original annotation of image at index
@@ -196,11 +214,12 @@ class BTSDetection(data.Dataset):
             list:  [img_id, [(label, bbox coords),...]]
                 eg: ('001718', [('dog', (96, 13, 438, 332))])
         '''
-        img_id = self.ids[index]
-        #anno = ET.parse(self._annopath % img_id).getroot()
-        #gt = self.target_transform(anno, 1, 1)
-        return index, [tuple(img_id[5], tuple(img_id[1:4]))]
-		
+        item = self.anno[index]
+        # anno = ET.parse(self._annopath % img_id).getroot()
+        # gt = self.target_transform(anno, 1, 1)
+        return index, [tuple(item[6], tuple(item[1:4]))]
+
+
     def pull_tensor(self, index):
         '''Returns the original image at an index in tensor form
 
@@ -213,6 +232,3 @@ class BTSDetection(data.Dataset):
             tensorized version of img, squeezed
         '''
         return torch.Tensor(self.pull_image(index)).unsqueeze_(0)
-
-    
-        

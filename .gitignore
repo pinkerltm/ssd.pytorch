@@ -126,3 +126,9 @@ data/ssd_dataloader.py
 
 # pylint
 .pylintrc
+
+# data and weights
+data/BelgiumTS/
+data/coco/
+data/VOCdevkit/
+weights/
