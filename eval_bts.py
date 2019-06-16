@@ -9,7 +9,7 @@ import torch
 import torch.nn as nn
 import torch.backends.cudnn as cudnn
 from torch.autograd import Variable
-from data import BTS_ROOT, BTSAnnotationTransform, BTSDetection, BaseTransform
+from data import BTS_ROOT, BTSAnnotationTransform, BTSDetection, BaseTransform, config
 from data import BTS_SUPERCLASSES as labelmap
 import torch.utils.data as data
 
@@ -31,7 +31,7 @@ def str2bool(v):
 parser = argparse.ArgumentParser(
     description='Single Shot MultiBox Detector Evaluation')
 parser.add_argument('--trained_model',
-                    default='weights/ssd300_BTS_95000.pth', type=str,
+                    default='weights/ssd300_BTS_5000.pth', type=str,
                     help='Trained state_dict file path to open')
 parser.add_argument('--save_folder', default='eval/', type=str,
                     help='File path to save results')
@@ -43,7 +43,7 @@ parser.add_argument('--cuda', default=True, type=str2bool,
                     help='Use cuda to train model')
 parser.add_argument('--bts_root', default=BTS_ROOT,
                     help='Location of BTS root directory')
-parser.add_argument('--cleanup', default=True, type=str2bool,
+parser.add_argument('--cleanup', default=False, type=str2bool,
                     help='Cleanup and remove results files following eval')
 
 args = parser.parse_args()
@@ -64,7 +64,7 @@ else:
 annopath = os.path.join(args.bts_root, 'BelgiumTSD_annotations', 'BTSD_%s_GTclear.txt')
 imgpath = os.path.join(args.bts_root, '%s')
 
-dataset_mean = (104, 117, 123)
+dataset_mean = bts_sc['mean'] # (104, 117, 123)
 set_type = 'testing'
 
 
