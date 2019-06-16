@@ -1,5 +1,6 @@
 from .voc0712 import VOCDetection, VOCAnnotationTransform, VOC_CLASSES, VOC_ROOT
 from .bts import BTSDetection, BTSAnnotationTransform, BTS_SUPERCLASSES, BTS_ROOT
+from .gts import GTSDetection, GTSAnnotationTransform, GTS_CLASSES, GTS_SUPERCLASSES, GTS_ROOT
 from .coco import COCODetection, COCOAnnotationTransform, COCO_CLASSES, COCO_ROOT, get_label_map
 from .config import *
 import torch

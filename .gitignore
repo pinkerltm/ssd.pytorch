@@ -131,4 +131,7 @@ data/ssd_dataloader.py
 data/BelgiumTS/
 data/coco/
 data/VOCdevkit/
+data/GTSRB/
+data/GTSDB/
+data/LowerAustriaTSD/
 weights/

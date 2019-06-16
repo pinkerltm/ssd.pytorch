@@ -6,7 +6,52 @@ import torch.utils.data as data
 import cv2
 import numpy as np
 
-''' Superclasses   
+GTS_CLASSES = (
+	'0 = speed limit 20 (prohibitory)',
+	'1 = speed limit 30 (prohibitory)',
+	'2 = speed limit 50 (prohibitory)',
+	'3 = speed limit 60 (prohibitory)',
+	'4 = speed limit 70 (prohibitory)',
+	'5 = speed limit 80 (prohibitory)',
+	'6 = restriction ends 80 (other)',
+	'7 = speed limit 100 (prohibitory)',
+	'8 = speed limit 120 (prohibitory)',
+	'9 = no overtaking (prohibitory)',
+	'10 = no overtaking (trucks) (prohibitory)',
+	'11 = priority at next intersection (danger)',
+	'12 = priority road (other)',
+	'13 = give way (other)',
+	'14 = stop (other)',
+	'15 = no traffic both ways (prohibitory)',
+	'16 = no trucks (prohibitory)',
+	'17 = no entry (other)',
+	'18 = danger (danger)',
+	'19 = bend left (danger)',
+	'20 = bend right (danger)',
+	'21 = bend (danger)',
+	'22 = uneven road (danger)',
+	'23 = slippery road (danger)',
+	'24 = road narrows (danger)',
+	'25 = construction (danger)',
+	'26 = traffic signal (danger)',
+	'27 = pedestrian crossing (danger)',
+	'28 = school crossing (danger)',
+	'29 = cycles crossing (danger)',
+	'30 = snow (danger)',
+	'31 = animals (danger)',
+	'32 = restriction ends (other)',
+	'33 = go right (mandatory)',
+	'34 = go left (mandatory)',
+	'35 = go straight (mandatory)',
+	'36 = go right or straight (mandatory)',
+	'37 = go left or straight (mandatory)',
+	'38 = keep right (mandatory)',
+	'39 = keep left (mandatory)',
+	'40 = roundabout (mandatory)',
+	'41 = restriction ends (overtaking) (other)',
+	'42 = restriction ends (overtaking (trucks)) (other)'
+)
+''' Belgian Superclasses   
 -1.   undefined traffic sign (TS) class type; %-1
 0.    other defined TS = [all the other defined TS ids besides the following 11]; %0
 1.    triangles = [2 3 4 7 8 9 10 12 13 15 17 18 22 26 27 28 29 34 35];   %1 (corresponds to Danger superclass in GTSDB)
@@ -21,7 +66,7 @@ import numpy as np
 10.    rectanglesup  = [37,87,90,94,95,96,97,149,150,163];%10
 11.    rectanglesdown= [111,112]; %11
 '''
-BTS_SUPERCLASSES = (
+GTS_SUPERCLASSES = (
     'undefined traffic sign (TS) class type',  # -1 ... 2040
     'other defined TS',  # 0 ... 1705
     'triangles',  # 1 ... 765
@@ -38,11 +83,17 @@ BTS_SUPERCLASSES = (
 )
 # Total 8851 Annotations (Training) in 5905 images
 
-BTS_ROOT = osp.join(HOME, "data", "BelgiumTS")
+ 
+  
+GTS_ROOT = osp.join(HOME, "data", "GTSDB")
 
+prohibitory = [0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 15, 16] # (circular, white ground with red border) --> redcircles
+mandatory = [33, 34, 35, 36, 37, 38, 39, 40] # (circular, blue ground) --> bluecircles
+danger = [11, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31] # (triangular, white ground with red border) --> triangles
+	
 
-class BTSAnnotationTransform(object):
-    """Transforms a BTS annotation into a Tensor of bbox coords and label index
+class GTSAnnotationTransform(object):
+    """Transforms a GTS annotation into a Tensor of bbox coords and label index
     Initilized with a dictionary lookup of classnames to indexes
 
     Arguments:
@@ -53,13 +104,13 @@ class BTSAnnotationTransform(object):
 
     def __init__(self, only_superclass=True):
         self.superclass_to_label = dict(
-            zip(BTS_SUPERCLASSES, range(-1, len(BTS_SUPERCLASSES)))
+            zip(GTS_SUPERCLASSES, range(-1, len(GTS_SUPERCLASSES)))
         )
         self.label_to_superclass = dict(
-            zip(range(-1, len(BTS_SUPERCLASSES)), BTS_SUPERCLASSES)
+            zip(range(-1, len(GTS_SUPERCLASSES)), GTS_SUPERCLASSES)
         )
         self.label_to_id = dict(
-            zip(range(-1, len(BTS_SUPERCLASSES)-1), range(0, len(BTS_SUPERCLASSES)))
+            zip(range(-1, len(GTS_SUPERCLASSES)-1), range(0, len(GTS_SUPERCLASSES)))
         )
         if not only_superclass:
             self.class_to_label = {}
@@ -90,7 +141,7 @@ class BTSAnnotationTransform(object):
                 cur_pt = cur_pt / height if i % 2 == 0 else cur_pt / width
                 bndbox.append(cur_pt)
 
-            label = obj[6] if self.only_superclass else obj[5]
+            label = self.label_to_btssuperclass(int(obj[5])) if self.only_superclass else obj[5]
             #label_idx = self.class_to_ind[int()] # TODO is here a mapping needed?
             bndbox.append(int(label))
                 
@@ -98,16 +149,25 @@ class BTSAnnotationTransform(object):
         # img_id = target.find('filename').text[:-4]
         #print(res)
         return res  # [[xmin, ymin, xmax, ymax, label_ind], ... ]
+		
+    def label_to_btssuperclass(self, label):
+        if label in danger:
+            return 2
+        if label in prohibitory:
+            return 3
+        if label in mandatory:
+            return 4
 
+        return 0	
 
-class BTSDetection(data.Dataset):
-    """BTS Detection Dataset Object
+class GTSDetection(data.Dataset):
+    """GTS Detection Dataset Object
 
     input is image, target is annotation
 
     Arguments:
         root (string): filepath to BelgiumTS folder.
-        image_set (string): imageset to use (eg. 'training', 'testing', 'all')
+        image_set (string): imageset to use (eg. 'Train', 'Test', 'Full')
         transform (callable, optional): transformation to perform on the
             input image
         target_transform (callable, optional): transformation to perform on the
@@ -118,35 +178,31 @@ class BTSDetection(data.Dataset):
     """
 
     def __init__(self, root,
-                 image_set='all',
+                 image_set='Full',
                  transform=None,
-                 target_transform=BTSAnnotationTransform(),
-                 dataset_name='BTS'):
+                 target_transform=GTSAnnotationTransform(),
+                 dataset_name='GTS'):
         self.root = root
         self.transform = transform
         self.target_transform = target_transform
         self.name = dataset_name
-        self._annopath = osp.join('%s', 'BelgiumTSD_annotations', 'BTSD_%s_GTclear.txt')
-        self._imgpath = root
+        self._annopath = osp.join('%s', '%sIJCNN2013', 'gt.txt')
+        self._imgpath = osp.join('%s', '%sIJCNN2013')
         self.anno = list()
-        for set in ['training', 'testing']:
-            if image_set == set or image_set == 'all':
-                for line in open(self._annopath % (root, set)):
-                    row = line.split(';')
-                    if row[6] == '-1':
-                        continue
-                    (cam, image) = row[0].split('/')
-                    self.anno.append(
-                        (   osp.join(root, cam, image)
-                            , row[1]
-                            , row[2]
-                            , row[3]
-                            , row[4]
-                            , row[5]
-                            , row[6] #if self.target_transform.only_superclass else row[5]
-                        )
-                    )
-
+        for line in open(self._annopath % (root, image_set)):
+            row = line.split(';')
+            
+            image = row[0]
+            self.anno.append(
+                (   osp.join(self._imgpath % (root, image_set), image)
+                        , row[1]
+                        , row[2]
+                        , row[3]
+                        , row[4]
+                        , row[5]
+                )
+            )
+        
     def __getitem__(self, index):
         im, gt, h, w = self.pull_item(index)
 
@@ -223,7 +279,7 @@ class BTSDetection(data.Dataset):
         item = self.anno[index]
         # anno = ET.parse(self._annopath % img_id).getroot()
         # gt = self.target_transform(anno, 1, 1)
-        return index, [tuple(item[6], tuple(item[1:4]))]
+        return index, [tuple(item[5], tuple(item[1:4]))]
 
 
     def pull_tensor(self, index):
