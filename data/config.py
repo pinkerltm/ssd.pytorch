@@ -45,7 +45,7 @@ coco = {
 }
 
 bts = {
-    'num_classes': 12,
+    'num_classes': 13,
     'lr_steps': (50000, 70000, 90000),
     'max_iter': 100010,
     'feature_maps': [38, 19, 10, 5, 3, 1],
@@ -61,7 +61,7 @@ bts = {
 }
 
 bts_sc = {
-    'num_classes': 12,
+    'num_classes': 13,
     'lr_steps': (50000, 70000, 90000),
     'max_iter': 100010,
     'feature_maps': [38, 19, 10, 5, 3, 1],
@@ -77,7 +77,7 @@ bts_sc = {
 }
 
 gts_sc = {
-    'num_classes': 12,
+    'num_classes': 13,
     'lr_steps': (20000, 30000, 40000),
     'max_iter': 50020,
     'feature_maps': [38, 19, 10, 5, 3, 1],

@@ -25,15 +25,15 @@ def str2bool(v):
 parser = argparse.ArgumentParser(
     description='Single Shot MultiBox Detector Training With Pytorch')
 train_set = parser.add_mutually_exclusive_group()
-parser.add_argument('--dataset', default='BTS', choices=['VOC', 'COCO', 'BTS'],
-                    type=str, help='VOC, COCO or BTS')
-parser.add_argument('--dataset_root', default=BTS_ROOT,
+parser.add_argument('--dataset', default='GTS', choices=['VOC', 'COCO', 'BTS', 'GTS'],
+                    type=str, help='VOC, COCO, BTS or GTS')
+parser.add_argument('--dataset_root', default=GTS_ROOT,
                     help='Dataset root directory path')
 parser.add_argument('--basenet', default='vgg16_reducedfc.pth',
                     help='Pretrained base model')
 parser.add_argument('--batch_size', default=16, type=int,
                     help='Batch size for training')
-parser.add_argument('--resume', default=None, type=str,
+parser.add_argument('--resume', default='weights/ssd300_BTS_95000.pth', type=str,
                     help='Checkpoint state_dict file to resume training from')
 parser.add_argument('--start_iter', default=0, type=int,
                     help='Resume training at this iter')
@@ -97,8 +97,20 @@ def train():
             print("WARNING: Using default BTS dataset_root because " +
                   "--dataset_root was not specified.")
             args.dataset_root = BTS_ROOT
-        cfg = bts_sc
+        cfg = bts
         dataset = BTSDetection(root=args.dataset_root,
+                                transform=SSDAugmentation(cfg['min_dim'],
+                                                             MEANS))
+															 
+    elif args.dataset == 'GTS':
+        if args.dataset_root == VOC_ROOT:
+            if not os.path.exists(GTS_ROOT):
+                parser.error('Must specify dataset_root if specifying dataset')
+            print("WARNING: Using default GTS dataset_root because " +
+                  "--dataset_root was not specified.")
+            args.dataset_root = GTS_ROOT
+        cfg = gts_sc
+        dataset = GTSDetection(root=args.dataset_root,
                                 transform=SSDAugmentation(cfg['min_dim'],
                                                              cfg['mean']))
 
@@ -221,7 +233,7 @@ def train():
 
         if iteration != 0 and iteration % 5000 == 0:
             print('Saving state, iter:', iteration)
-            torch.save(ssd_net.state_dict(), 'weights/ssd300_BTS_' +
+            torch.save(ssd_net.state_dict(), 'weights/ssd300_BTS_GTS_ft_' +
                        repr(iteration) + '.pth')
     torch.save(ssd_net.state_dict(),
                args.save_folder + '' + args.dataset + '.pth')

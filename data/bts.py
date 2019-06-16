@@ -92,7 +92,7 @@ class BTSAnnotationTransform(object):
 
             label = obj[6] if self.only_superclass else obj[5]
             #label_idx = self.class_to_ind[int()] # TODO is here a mapping needed?
-            bndbox.append(int(label))
+            bndbox.append(int(label)+1) # reoffset label (-1) to index
                 
             res += [bndbox]  # [xmin, ymin, xmax, ymax, label_ind]
         # img_id = target.find('filename').text[:-4]
@@ -133,8 +133,8 @@ class BTSDetection(data.Dataset):
             if image_set == set or image_set == 'all':
                 for line in open(self._annopath % (root, set)):
                     row = line.split(';')
-                    if row[6] == '-1':
-                        continue
+                    #if row[6] == '-1':
+                    #    continue
                     (cam, image) = row[0].split('/')
                     self.anno.append(
                         (   osp.join(root, cam, image)

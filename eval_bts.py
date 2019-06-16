@@ -9,8 +9,8 @@ import torch
 import torch.nn as nn
 import torch.backends.cudnn as cudnn
 from torch.autograd import Variable
-from data import VOC_ROOT, VOCAnnotationTransform, VOCDetection, BaseTransform
-from data import VOC_CLASSES as labelmap
+from data import BTS_ROOT, BTSAnnotationTransform, BTSDetection, BaseTransform
+from data import BTS_SUPERCLASSES as labelmap
 import torch.utils.data as data
 
 from ssd import build_ssd
@@ -23,11 +23,6 @@ import numpy as np
 import pickle
 import cv2
 
-if sys.version_info[0] == 2:
-    import xml.etree.cElementTree as ET
-else:
-    import xml.etree.ElementTree as ET
-
 
 def str2bool(v):
     return v.lower() in ("yes", "true", "t", "1")
@@ -36,7 +31,7 @@ def str2bool(v):
 parser = argparse.ArgumentParser(
     description='Single Shot MultiBox Detector Evaluation')
 parser.add_argument('--trained_model',
-                    default='weights/ssd300_mAP_77.43_v2.pth', type=str,
+                    default='weights/ssd300_BTS_95000.pth', type=str,
                     help='Trained state_dict file path to open')
 parser.add_argument('--save_folder', default='eval/', type=str,
                     help='File path to save results')
@@ -46,8 +41,8 @@ parser.add_argument('--top_k', default=5, type=int,
                     help='Further restrict the number of predictions to parse')
 parser.add_argument('--cuda', default=True, type=str2bool,
                     help='Use cuda to train model')
-parser.add_argument('--voc_root', default=VOC_ROOT,
-                    help='Location of VOC root directory')
+parser.add_argument('--bts_root', default=BTS_ROOT,
+                    help='Location of BTS root directory')
 parser.add_argument('--cleanup', default=True, type=str2bool,
                     help='Cleanup and remove results files following eval')
 
@@ -66,14 +61,11 @@ if torch.cuda.is_available():
 else:
     torch.set_default_tensor_type('torch.FloatTensor')
 
-annopath = os.path.join(args.voc_root, 'VOC2007', 'Annotations', '%s.xml')
-imgpath = os.path.join(args.voc_root, 'VOC2007', 'JPEGImages', '%s.jpg')
-imgsetpath = os.path.join(args.voc_root, 'VOC2007', 'ImageSets',
-                          'Main', '{:s}.txt')
-YEAR = '2007'
-devkit_path = args.voc_root + 'VOC' + YEAR
+annopath = os.path.join(args.bts_root, 'BelgiumTSD_annotations', 'BTSD_%s_GTclear.txt')
+imgpath = os.path.join(args.bts_root, '%s')
+
 dataset_mean = (104, 117, 123)
-set_type = 'test'
+set_type = 'testing'
 
 
 class Timer(object):
@@ -426,9 +418,9 @@ if __name__ == '__main__':
     net.eval()
     print('Finished loading model!')
     # load data
-    dataset = VOCDetection(args.voc_root, [('2007', set_type)],
+    dataset = BTSDetection(args.bts_root, 'testing',
                            BaseTransform(300, dataset_mean),
-                           VOCAnnotationTransform())
+                           BTSAnnotationTransform())
     if args.cuda:
         net = net.cuda()
         cudnn.benchmark = True
